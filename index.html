@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Peta Tower Nasional - Profesional</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+<style>
+html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
+#container {display:flex; flex-direction:column; height:100vh;}
+#map {flex:1; width:100%; transition: height 0.2s;}
+#summaryPanel {
+  background:#f5f5f5; padding:10px; border-top:1px solid #ccc;
+  overflow:auto;
+  transition: height 0.2s;
+}
+#summaryPanel table {width:100%; border-collapse:collapse;}
+#summaryPanel th, #summaryPanel td {border:1px solid #ccc; padding:6px 8px; text-align:center; font-size:14px;}
+#summaryPanel th {background:#1976d2; color:white;}
+.toggle-cell {cursor:pointer; user-select:none; font-size:18px;}
+.leaflet-tooltip {
+  background:rgba(255,255,255,0.8);
+  border:1px solid #666;
+  border-radius:4px;
+  font-size:11px;
+  padding:2px 4px;
+  white-space:nowrap;
+  text-align:center;
+}
+#topbar {
+  position:absolute; top:10px; left:50px; z-index:1000;
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+  justify-content:flex-start;
+}
+#searchBox {
+  flex:1; min-width:220px; max-width:300px;
+  padding:8px 10px; border-radius:8px; border:1px solid #bbb;
+  background:white; box-shadow:0 1px 5px rgba(0,0,0,0.2);
+  margin-right:6px;
+}
+#resetBtn, #measureBtn {
+  background:#1976d2; color:white; border:none; padding:8px 14px;
+  border-radius:8px; cursor:pointer; box-shadow:0 1px 5px rgba(0,0,0,0.3);
+}
+#resetBtn:hover, #measureBtn:hover {background:#1565c0;}
+#numSites {padding:6px 8px; border-radius:6px; border:1px solid #bbb;}
+#dragHandle {
+  height:6px; background:#ccc; cursor:row-resize; width:100%;
+}
+</style>
+</head>
+<body>
+<div id="container">
+  <div id="map"></div>
+  <div id="dragHandle"></div>
+  <div id="summaryPanel">
+    <b>Focus Site - Summary Quick Hygine Site HD DIOC</b>
+    <div style="margin:5px 0;">
+      Tampilkan: 
+      <select id="numSites">
+        <option value="5" selected>5</option>
+        <option value="10">10</option>
+        <option value="15">15</option>
+        <option value="20">20</option>
+      </select> site terdekat
+    </div>
+    <table id="summaryTable">
+      <thead>
+        <tr>
+          <th>SiteID</th>
+          <th>Site Name</th>
+          <th>Dist (km)</th>
+          <th>SIA Status</th>
+          <th>Cell Status</th>
+          <th>Twamp PLR/Delay</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div id="topbar">
+    <input id="searchBox" type="text" placeholder="Cari Site ID / Site Name / lat,lon lalu Enter">
+    <button id="measureBtn">📏 Manual Ukur</button>
+    <button id="resetBtn">🔄 Reset</button>
+  </div>
+</div>
+
+<script>
+const sheetID = "1whOqrMXCWPGfKVVqaQwuehYoaxTuIRuE2dSrJMEH5n8";
+const sheetNames = ["JABODETABEK","SUMATERA","CWJ","EJBN","KALISUMAPA"];
+let allSites = [], markersLayer, referenceMarker, linesLayer;
+let manualMeasure = false, measurePoints = [];
+
+const map = L.map("map", { zoomControl: true }).setView([-2.5,118],5);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:18}).addTo(map);
+
+async function loadAllSheets() {
+  allSites = [];
+  for (const name of sheetNames) {
+    const url = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?tqx=out:csv&sheet=${name}`;
+    try {
+      const res = await fetch(url);
+      const csvText = await res.text();
+      const parsed = Papa.parse(csvText.trim(), {header:false});
+      parsed.data.slice(1).forEach(row=>{
+        const siteID = (row[0]||"").trim();
+        const siteName = (row[1]||"").trim();
+        const lat = parseFloat(row[2]);
+        const lon = parseFloat(row[3]);
+        const address = (row[4]||"").trim();
+        if (!siteID || isNaN(lat) || isNaN(lon)) return;
+        allSites.push({siteID, siteName, lat, lon, address, region:name});
+      });
+    } catch(e){ console.error("Error load", name, e); }
+  }
+}
+
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI/180;
+  const dLon = (lon2 - lon1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) *
+            Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+function drawConnectionLines(baseLat, baseLon, nearest) {
+  if (linesLayer) map.removeLayer(linesLayer);
+  linesLayer = L.layerGroup();
+  nearest.forEach(s=>{
+    L.polyline([[baseLat, baseLon],[s.lat, s.lon]], {color:"red", weight:2}).addTo(linesLayer);
+    const midLat = (baseLat + s.lat)/2;
+    const midLon = (baseLon + s.lon)/2;
+    const dist = getDistance(baseLat, baseLon, s.lat, s.lon).toFixed(2);
+    L.marker([midLat, midLon], {
+      icon: L.divIcon({className:"distance-label", html:`<div style="background:white; padding:1px 3px; border:1px solid #666; font-size:10px;">${dist} km</div>`})
+    }).addTo(linesLayer);
+  });
+  map.addLayer(linesLayer);
+}
+
+function createToggleCell(initial) {
+  const td = document.createElement('td');
+  td.className = "toggle-cell";
+  td.textContent = initial; 
+  td.onclick = () => { td.textContent = td.textContent === "✅" ? "❌" : "✅"; };
+  return td;
+}
+
+function updateSummaryPanel(lat, lon) {
+  const num = parseInt(document.getElementById("numSites").value) || 5;
+  const sorted = allSites
+    .map(s => ({...s, dist: getDistance(lat, lon, s.lat, s.lon)}))
+    .sort((a,b)=>a.dist-b.dist)
+    .slice(0,num);
+
+  const tbody = document.querySelector('#summaryTable tbody');
+  tbody.innerHTML = "";
+  sorted.forEach(s=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${s.siteID}</td><td>${s.siteName}</td><td>${s.dist.toFixed(2)}</td>`;
+    tr.appendChild(createToggleCell("✅"));
+    tr.appendChild(createToggleCell("❌"));
+    tr.appendChild(createToggleCell("✅"));
+    tbody.appendChild(tr);
+  });
+  return sorted;
+}
+
+function showNearby(lat, lon) {
+  if (markersLayer) map.removeLayer(markersLayer);
+  if (linesLayer) map.removeLayer(linesLayer);
+  markersLayer = L.layerGroup();
+  const nearestSites = updateSummaryPanel(lat, lon);
+  nearestSites.forEach(s=>{
+    const m = L.marker([s.lat, s.lon], {
+      icon: L.icon({iconUrl:'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png', iconAnchor:[12,41]})
+    }).bindPopup(`<b>${s.siteID}</b><br>${s.siteName}<br>${s.address}<br><i>${s.region}</i>`).addTo(markersLayer);
+    m.bindTooltip(`${s.siteID}<br>${s.siteName}`, {permanent:true,direction:"bottom",offset:[0,5]});
+  });
+  drawConnectionLines(lat, lon, nearestSites);
+  map.addLayer(markersLayer);
+}
+
+// Klik peta
+map.on("click", e=>{
+  const {lat, lng} = e.latlng;
+  if (manualMeasure) {
+    measurePoints.push([lat,lng]);
+    if (measurePoints.length === 2) {
+      const dist = getDistance(measurePoints[0][0], measurePoints[0][1], measurePoints[1][0], measurePoints[1][1]).toFixed(2);
+      L.polyline(measurePoints, {color:"green", weight:3}).addTo(map).bindPopup(`Jarak: ${dist} km`).openPopup();
+      measurePoints = []; manualMeasure = false; alert("Pengukuran selesai: "+dist+" km");
+    } else alert("Pilih titik kedua di peta untuk menghitung jarak");
+    return;
+  }
+  if (referenceMarker) map.removeLayer(referenceMarker);
+  referenceMarker = L.marker([lat,lng], {icon:L.divIcon({html:"🧍", className:"", iconSize:[24,24], iconAnchor:[12,12]})}).addTo(map).bindPopup("Titik referensi").openPopup();
+  showNearby(lat,lng);
+});
+
+// Search
+document.getElementById("searchBox").addEventListener("keypress", e=>{
+  if(e.key==="Enter"){
+    const q=e.target.value.trim();
+    if(!q) return;
+    const coordMatch=q.match(/^(-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)$/);
+    if(coordMatch){
+      const lat=parseFloat(coordMatch[1]), lng=parseFloat(coordMatch[3]);
+      if(!isNaN(lat) && !isNaN(lng)){
+        if(referenceMarker) map.removeLayer(referenceMarker);
+        referenceMarker=L.marker([lat,lng],{icon:L.divIcon({html:"🧍",className:"",iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map).bindPopup(`Posisi user: ${lat}, ${lng}`).openPopup();
+        map.setView([lat,lng],13); showNearby(lat,lng);
+      }
+      return;
+    }
+    const found = allSites.find(s => s.siteID.toLowerCase()===q.toLowerCase() || s.siteName.toLowerCase().includes(q.toLowerCase()));
+    if(!found){ alert("Site tidak ditemukan"); return; }
+    if(referenceMarker) map.removeLayer(referenceMarker);
+    referenceMarker=L.marker([found.lat,found.lon],{icon:L.icon({iconUrl:'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',iconAnchor:[12,41]})}).addTo(map).bindPopup(`<b>${found.siteID}</b><br>${found.siteName}`).openPopup();
+    map.setView([found.lat,found.lon],13); showNearby(found.lat,found.lon);
+  }
+});
+
+// Reset
+document.getElementById("resetBtn").onclick = ()=>{
+  if(markersLayer) map.removeLayer(markersLayer);
+  if(referenceMarker) map.removeLayer(referenceMarker);
+  if(linesLayer) map.removeLayer(linesLayer);
+  map.setView([-2.5,118],5);
+  document.querySelector('#summaryTable tbody').innerHTML = "";
+  document.getElementById("searchBox").value="";
+};
+
+// Manual ukur
+document.getElementById("measureBtn").onclick = ()=>{
+  manualMeasure=true; measurePoints=[];
+  alert("Klik dua titik di peta untuk mengukur jarak manual");
+};
+
+// Dropdown change
+document.getElementById("numSites").addEventListener("change", ()=>{
+  if(referenceMarker){
+    const {lat,lng}=referenceMarker.getLatLng();
+    showNearby(lat,lng);
+  }
+});
+
+// --- Resizable map / summary ---
+const dragHandle=document.getElementById('dragHandle');
+let isDragging=false;
+dragHandle.addEventListener('mousedown', e=>{isDragging=true; e.preventDefault();});
+document.addEventListener('mouseup', e=>{isDragging=false;});
+document.addEventListener('mousemove', e=>{
+  if(!isDragging) return;
+  const containerHeight=document.getElementById('container').clientHeight;
+  let newMapHeight=e.clientY;
+  if(newMapHeight<100) newMapHeight=100;
+  if(newMapHeight>containerHeight-50) newMapHeight=containerHeight-50;
+  document.getElementById('map').style.height=newMapHeight+'px';
+  document.getElementById('summaryPanel').style.height=(containerHeight-newMapHeight-dragHandle.offsetHeight)+'px';
+  map.invalidateSize();
+});
+
+loadAllSheets();
+</script>
+</body>
+</html>
