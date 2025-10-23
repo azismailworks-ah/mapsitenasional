@@ -19,14 +19,22 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
 #summaryPanel th, #summaryPanel td {border:1px solid #ccc; padding:6px 8px; text-align:center; font-size:14px;}
 #summaryPanel th {background:#1976d2; color:white;}
 .toggle-cell {cursor:pointer; user-select:none; font-size:18px;}
+/* Tooltip diperbesar dan mobile-friendly */
 .leaflet-tooltip {
-  background:rgba(255,255,255,0.8);
-  border:1px solid #666;
-  border-radius:4px;
-  font-size:11px;
-  padding:2px 4px;
-  white-space:nowrap;
-  text-align:center;
+  background: rgba(255,255,255,0.95);
+  border: 1px solid #666;
+  border-radius: 4px;
+  font-size: 14px;      /* default diperbesar */
+  padding: 4px 6px;
+  white-space: nowrap;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+@media (max-width: 768px) {
+  .leaflet-tooltip {
+    font-size: 16px;    /* lebih besar untuk smartphone */
+    padding: 6px 8px;
+  }
 }
 #topbar {
   position:absolute; top:10px; left:50px; z-index:1000;
@@ -100,7 +108,7 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
 </div>
 
 <script>
-// Semua function dan logic yang sama dengan versi sebelumnya
+// Semua function dan logic sama dengan versi sebelumnya
 const sheetID = "1whOqrMXCWPGfKVVqaQwuehYoaxTuIRuE2dSrJMEH5n8";
 const sheetNames = ["JABODETABEK","SUMATERA","CWJ","EJBN","KALISUMAPA"];
 let allSites = [], markersLayer, referenceMarker, linesLayer;
@@ -184,6 +192,7 @@ function showNearby(lat,lon){
   nearestSites.forEach(s=>{
     const m=L.marker([s.lat,s.lon],{icon:L.icon({iconUrl:'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',iconAnchor:[12,41]})})
       .bindPopup(`<b>${s.siteID}</b><br>${s.siteName}<br>${s.address}<br><i>${s.region}</i>`).addTo(markersLayer);
+    // Tooltip diperbesar otomatis sesuai style di CSS
     m.bindTooltip(`${s.siteID}<br>${s.siteName}`,{permanent:true,direction:"bottom",offset:[0,5]});
   });
   drawConnectionLines(lat,lon,nearestSites);
