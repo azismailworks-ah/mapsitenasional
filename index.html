@@ -12,7 +12,7 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
 #map {flex:1; width:100%; transition: height 0.2s;}
 #summaryPanel {background:#f5f5f5; padding:10px; border-top:1px solid #ccc; overflow:auto; transition: height 0.2s;}
 #summaryPanel table {width:100%; border-collapse:collapse;}
-#summaryPanel th, #summaryPanel td {border:1px solid #ccc; padding:6px 8px; text-align:center; font-size:14px;}
+#summaryPanel th, #summaryPanel td {border:1px solid #ccc; padding:6px 8px; text-align:center; font-size:14px; vertical-align:top;}
 #summaryPanel th {background:#1976d2; color:white;}
 .toggle-cell {cursor:pointer; user-select:none; font-size:18px;}
 .leaflet-tooltip {background: rgba(255,255,255,0.95); border: 1px solid #666; border-radius: 4px; font-size: 14px; padding: 4px 6px; white-space: nowrap; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.3);} 
@@ -26,6 +26,9 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
 #buttonGroup {position:absolute; top:10px; right:10px; z-index:1000; display:flex; flex-direction:column; gap:6px;}
 @media(max-width:600px){#topbar {left:10px; right:10px;} #searchBox {max-width:none; flex:1;} #buttonGroup {flex-direction:row;} #buttonGroup button {flex:1;}}
 #siteFilterBox {display:none; background:white; border:1px solid #ccc; padding:6px; margin:8px 0; max-height:160px; overflow:auto;}
+#analisaBtn{background:#388e3c;color:white;padding:8px 12px;border-radius:8px;border:none;cursor:pointer;margin-bottom:8px}
+#analisaBtn[disabled]{opacity:0.6; cursor:not-allowed}
+.metric-cell {white-space:normal; text-align:left; font-size:13px;}
 </style>
 </head>
 <body>
@@ -36,33 +39,37 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
     <b>Site Cover Complaint Area - Summary Quick Hygine Site</b>
     
     <div style="margin:6px 0;">
-  <label for="filterDropdown"><b>Pilih Site:</b></label>
-  <div id="filterDropdown" style="position:relative; display:inline-block; width:200px;">
-    <div id="filterHeader" style="padding:8px; border:1px solid #888; border-radius:6px; background:white; cursor:pointer;">
-      ✔ Filter Site Cover
-    </div>
-    <div id="siteFilterBox" style="display:none; position:absolute; top:40px; left:0; right:0; background:white; border:1px solid #ccc; border-radius:6px; max-height:260px; overflow-y:auto; z-index:2000; padding:6px; box-shadow:0 2px 6px rgba(0,0,0,0.2);">
+      <label for="filterDropdown"><b>Pilih Site:</b></label>
+      <div id="filterDropdown" style="position:relative; display:inline-block; width:260px;">
+        <div id="filterHeader" style="padding:8px; border:1px solid #888; border-radius:6px; background:white; cursor:pointer;">
+          ✔ Filter Site Cover
+        </div>
+        <div id="siteFilterBox" style="display:none; position:absolute; top:40px; left:0; right:0; background:white; border:1px solid #ccc; border-radius:6px; max-height:260px; overflow-y:auto; z-index:2000; padding:6px; box-shadow:0 2px 6px rgba(0,0,0,0.2);">
 
-      <!-- ================== SELECT ALL / UNSELECT ALL BUTTONS ================== -->
-      <div style="margin-bottom:6px; display:flex; gap:6px;">
-        <button id="selectAllBtn" style="flex:1; padding:4px; cursor:pointer;">Select All</button>
-        <button id="unselectAllBtn" style="flex:1; padding:4px; cursor:pointer;">Unselect All</button>
+          <!-- SELECT ALL / UNSELECT ALL -->
+          <div style="margin-bottom:6px; display:flex; gap:6px;">
+            <button id="selectAllBtn" style="flex:1; padding:4px; cursor:pointer;">Select All</button>
+            <button id="unselectAllBtn" style="flex:1; padding:4px; cursor:pointer;">Unselect All</button>
+          </div>
+
+          <div id="filterList"></div>
+        </div>
       </div>
-      <!-- ======================================================================= -->
-
-      <div id="filterList"></div>
     </div>
-  </div>
-</div>
 
-    <div style="margin:5px 0;">
-      Tampilkan: 
-      <select id="numSites">
-        <option value="5" selected>5</option>
-        <option value="10">10</option>
-        <option value="15">15</option>
-        <option value="20">20</option>
-      </select> site terdekat
+    <div style="margin:5px 0; display:flex; gap:8px; align-items:center;">
+      <div>
+        <button id="analisaBtn" disabled>🔍 Analisa</button>
+      </div>
+      <div>
+        Tampilkan: 
+        <select id="numSites">
+          <option value="5" selected>5</option>
+          <option value="10">10</option>
+          <option value="15">15</option>
+          <option value="20">20</option>
+        </select> site terdekat
+      </div>
     </div>
 
     <table id="summaryTable">
@@ -74,6 +81,9 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
           <th>SIA Status</th>
           <th>Cell Status</th>
           <th>Twamp PLR/Delay</th>
+          <th>Avail</th>
+          <th>PLR</th>
+          <th>Delay</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -81,7 +91,7 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
   </div>
 
   <div id="topbar">
-    <input id="searchBox" type="text" placeholder="Cari Site ID / Site Name / lat,lon lalu Enter">
+    <input id="searchBox" type="text" placeholder="Cari Site ID / Site Name / lat,lon lalu Enter" disabled>
   </div>
   <div id="buttonGroup">
     <button id="measureBtn">📏 Manual Ukur</button>
@@ -93,41 +103,91 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
 <script>
 /* ---------------- FIX DROPDOWN SCRIPT ---------------- */
 
-// Toggle dropdown saat header diklik
 document.getElementById("filterHeader").onclick = function (e) {
     e.stopPropagation();
     const box = document.getElementById("siteFilterBox");
     box.style.display = box.style.display === "none" ? "block" : "none";
 };
+document.getElementById("siteFilterBox").onclick = function (e) { e.stopPropagation(); };
+document.addEventListener("click", function () { document.getElementById("siteFilterBox").style.display = "none"; });
 
-// Supaya klik di dalam dropdown tidak menutup
-document.getElementById("siteFilterBox").onclick = function (e) {
-    e.stopPropagation();
-};
-
-// Klik di luar dropdown → dropdown tertutup
-document.addEventListener("click", function () {
-    document.getElementById("siteFilterBox").style.display = "none";
-});
-
-/* ----------------------------------------------------- */
+/* ---------------- CONFIG / STATE ---------------- */
 
 const sheetID="1whOqrMXCWPGfKVVqaQwuehYoaxTuIRuE2dSrJMEH5n8";
 const sheetNames=["JABODETABEK","SUMATERA","CWJ","EJBN","KALISUMAPA"];
-let allSites=[], markersLayer, referenceMarker, linesLayer;
+const sheetMetricsID = "1V3Kn8p82yefBb5wiNcPcq4OqgSugrMgQuhgWwHf2oH8"; // metrics sheet
+
+let allSites = [], markersLayer, referenceMarker, linesLayer;
 let manualMeasure=false, measurePoints=[];
-let top20Sites=[], activeFilter=new Set();
+let top20Sites = [], activeFilter = new Set();
+let dataLoaded = false; // will be true after loadAllSheets finishes
+
+/* ---------------- MAP INIT ---------------- */
 
 const map=L.map("map",{zoomControl:true}).setView([-2.5,118],5);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18}).addTo(map);
 
-async function loadAllSheets(){allSites=[];for(const name of sheetNames){const url=`https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?tqx=out:csv&sheet=${name}`;try{const res=await fetch(url);const csvText=await res.text();const parsed=Papa.parse(csvText.trim(),{header:false});parsed.data.slice(1).forEach(row=>{const siteID=(row[0]||"").trim();const siteName=(row[1]||"").trim();const lat=parseFloat(row[2]);const lon=parseFloat(row[3]);const address=(row[4]||"").trim();if(!siteID||isNaN(lat)||isNaN(lon))return;allSites.push({siteID,siteName,lat,lon,address,region:name});});}catch(e){console.error("Error load",name,e);}}}
+/* ---------------- LOAD SITES FROM MULTIPLE SHEETS ---------------- */
 
-function getDistance(lat1,lon1,lat2,lon2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180;const dLon=(lon2-lon1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));return R*c;}
+async function loadAllSheets(){
+    allSites=[];
+    for(const name of sheetNames){
+        const url = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
+        try{
+            const res = await fetch(url);
+            const text = await res.text();
+            const parsed = Papa.parse(text.trim(), {header:false});
+            parsed.data.slice(1).forEach(row=>{
+                const siteID=(row[0]||"").toString().trim();
+                const siteName=(row[1]||"").toString().trim();
+                const lat=parseFloat(row[2]);
+                const lon=parseFloat(row[3]);
+                const address=(row[4]||"").toString().trim();
+                if(!siteID || isNaN(lat) || isNaN(lon)) return;
+                allSites.push({siteID, siteName, lat, lon, address, region: name});
+            });
+        }catch(e){
+            console.error("Error loading sheet", name, e);
+        }
+    }
+    dataLoaded = true;
+    document.getElementById('searchBox').disabled = false;
+    document.getElementById('analisaBtn').disabled = false;
+}
 
-function drawConnectionLines(lat,lon,list){if(linesLayer)map.removeLayer(linesLayer);linesLayer=L.layerGroup();list.forEach(s=>{L.polyline([[lat,lon],[s.lat,s.lon]],{color:"red",weight:2}).addTo(linesLayer);const midLat=(lat+s.lat)/2;const midLon=(lon+s.lon)/2;const dist=getDistance(lat,lon,s.lat,s.lon).toFixed(2);L.marker([midLat,midLon],{icon:L.divIcon({className:"distance-label",html:`<div style='background:white;padding:1px 3px;border:1px solid #666;font-size:10px;'>${dist} km</div>`})}).addTo(linesLayer);});map.addLayer(linesLayer);} 
+/* ---------------- HELPERS ---------------- */
 
-function createToggleCell(v){const td=document.createElement('td');td.className="toggle-cell";td.textContent=v;td.onclick=()=>{td.textContent=td.textContent==="✅"?"❌":"✅";};return td;}
+function getDistance(lat1,lon1,lat2,lon2){
+    const R=6371;
+    const dLat=(lat2-lat1)*Math.PI/180;
+    const dLon=(lon2-lon1)*Math.PI/180;
+    const a=Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    return R*c;
+}
+
+function drawConnectionLines(lat,lon,list){
+    if(linesLayer) map.removeLayer(linesLayer);
+    linesLayer = L.layerGroup();
+    list.forEach(s=>{
+        L.polyline([[lat,lon],[s.lat,s.lon]], {color:"red", weight:2}).addTo(linesLayer);
+        const midLat=(lat+s.lat)/2;
+        const midLon=(lon+s.lon)/2;
+        const dist=getDistance(lat,lon,s.lat,s.lon).toFixed(2);
+        L.marker([midLat,midLon],{icon:L.divIcon({className:"distance-label",html:`<div style='background:white;padding:1px 3px;border:1px solid #666;font-size:10px;'>${dist} km</div>`})}).addTo(linesLayer);
+    });
+    map.addLayer(linesLayer);
+}
+
+function createToggleCell(v){
+    const td=document.createElement('td');
+    td.className="toggle-cell";
+    td.textContent=v;
+    td.onclick=()=>{ td.textContent = td.textContent==="✅" ? "❌" : "✅"; };
+    return td;
+}
+
+/* ---------------- FILTER RENDER ---------------- */
 
 function renderFilterList(){
     const box=document.getElementById("siteFilterBox");
@@ -139,7 +199,7 @@ function renderFilterList(){
         const row=document.createElement("div");
         row.innerHTML=`
           <label>
-            <input type='checkbox' class='siteFilterItem' value='${s.siteID}' checked> 
+            <input type='checkbox' class='siteFilterItem' value='${s.siteID}' checked>
             ${s.siteID} - ${s.siteName}
           </label>`;
         list.appendChild(row);
@@ -150,20 +210,20 @@ function renderFilterList(){
             if(cb.checked) activeFilter.add(cb.value);
             else activeFilter.delete(cb.value);
 
-            const {lat,lng}=referenceMarker.getLatLng();
-            updateTable(lat,lng);
-            updateMarkersAndLines(lat,lng);
+            if(referenceMarker){
+                const {lat,lng} = referenceMarker.getLatLng();
+                updateTable(lat,lng);
+                updateMarkersAndLines(lat,lng);
+            }
         };
     });
 }
 
-/* ================== SELECT ALL / UNSELECT ALL LOGIC ================== */
+/* ---------------- SELECT ALL / UNSELECT ALL ---------------- */
 
 document.getElementById("selectAllBtn").onclick = function () {
     document.querySelectorAll(".siteFilterItem").forEach(cb => cb.checked = true);
-
     activeFilter = new Set(top20Sites.map(s => s.siteID));
-
     if (referenceMarker) {
         const {lat, lng} = referenceMarker.getLatLng();
         updateTable(lat, lng);
@@ -173,9 +233,7 @@ document.getElementById("selectAllBtn").onclick = function () {
 
 document.getElementById("unselectAllBtn").onclick = function () {
     document.querySelectorAll(".siteFilterItem").forEach(cb => cb.checked = false);
-
     activeFilter.clear();
-
     if (referenceMarker) {
         const {lat, lng} = referenceMarker.getLatLng();
         updateTable(lat, lng);
@@ -183,7 +241,7 @@ document.getElementById("unselectAllBtn").onclick = function () {
     }
 };
 
-/* ===================================================================== */
+/* ---------------- UPDATE TABLE / MARKERS ---------------- */
 
 function updateTable(lat,lon){
     const num=parseInt(document.getElementById("numSites").value);
@@ -197,10 +255,21 @@ function updateTable(lat,lon){
 
     filtered.forEach(s=>{
         const tr=document.createElement('tr');
+        tr.dataset.siteid = s.siteID;
         tr.innerHTML=`<td>${s.siteID}</td><td>${s.siteName}</td><td>${s.dist.toFixed(2)}</td>`;
         tr.appendChild(createToggleCell("✅"));
         tr.appendChild(createToggleCell("❌"));
         tr.appendChild(createToggleCell("✅"));
+
+        // placeholders for metrics (class metric-cell for styling)
+        const tdAvail = document.createElement('td'); tdAvail.className='metric-avail metric-cell'; tdAvail.innerHTML='';
+        const tdPlr = document.createElement('td'); tdPlr.className='metric-plr metric-cell'; tdPlr.innerHTML='';
+        const tdDelay = document.createElement('td'); tdDelay.className='metric-delay metric-cell'; tdDelay.innerHTML='';
+
+        tr.appendChild(tdAvail);
+        tr.appendChild(tdPlr);
+        tr.appendChild(tdDelay);
+
         tbody.appendChild(tr);
     });
 
@@ -208,21 +277,18 @@ function updateTable(lat,lon){
 }
 
 function updateMarkersAndLines(lat,lon){
-    if(markersLayer)map.removeLayer(markersLayer);
-    if(linesLayer)map.removeLayer(linesLayer);
+    if(markersLayer) map.removeLayer(markersLayer);
+    if(linesLayer) map.removeLayer(linesLayer);
 
-    markersLayer=L.layerGroup();
-
-    const shownSites=top20Sites.filter(s=>activeFilter.has(s.siteID));
+    markersLayer = L.layerGroup();
+    const shownSites = top20Sites.filter(s => activeFilter.has(s.siteID));
 
     shownSites.forEach(s=>{
-        const m=L.marker([s.lat,s.lon])
+        const m = L.marker([s.lat, s.lon])
             .bindPopup(`<b>${s.siteID}</b><br>${s.siteName}<br>${s.address}<br><i>${s.region}</i>`)
             .addTo(markersLayer);
 
-        m.bindTooltip(`${s.siteID}<br>${s.siteName}`,{
-            permanent:true,direction:"bottom",offset:[0,5]
-        });
+        m.bindTooltip(`${s.siteID}<br>${s.siteName}`, {permanent:true, direction:"bottom", offset:[0,5]});
     });
 
     drawConnectionLines(lat,lon,shownSites);
@@ -230,143 +296,329 @@ function updateMarkersAndLines(lat,lon){
 }
 
 function showNearby(lat,lon){
-    if(markersLayer)map.removeLayer(markersLayer);
-    if(linesLayer)map.removeLayer(linesLayer);
+    if(!dataLoaded){
+        console.warn("Data belum selesai dimuat.");
+        return;
+    }
 
-    top20Sites=allSites
-        .map(s=>({...s,dist:getDistance(lat,lon,s.lat,s.lon)}))
+    if(markersLayer) map.removeLayer(markersLayer);
+    if(linesLayer) map.removeLayer(linesLayer);
+
+    top20Sites = allSites
+        .map(s => ({...s, dist: getDistance(lat,lon,s.lat,s.lon)}))
         .sort((a,b)=>a.dist-b.dist)
         .slice(0,20);
 
-    activeFilter=new Set(top20Sites.map(s=>s.siteID));
+    activeFilter = new Set(top20Sites.map(s=>s.siteID));
 
     renderFilterList();
     updateTable(lat,lon);
     updateMarkersAndLines(lat,lon);
 }
 
-map.on("click",e=>{
-    const {lat,lng}=e.latlng;
+/* ---------------- MAP CLICK (kept) ---------------- */
+
+map.on("click", e=>{
+    const {lat,lng} = e.latlng;
 
     if(manualMeasure){
         measurePoints.push([lat,lng]);
         if(measurePoints.length===2){
-            const d=getDistance(
-                measurePoints[0][0],measurePoints[0][1],
-                measurePoints[1][0],measurePoints[1][1]
-            ).toFixed(2);
-            L.polyline(measurePoints,{color:"green",weight:3})
-                .addTo(map)
-                .bindPopup(`Jarak: ${d} km`)
-                .openPopup();
-            measurePoints=[];
-            manualMeasure=false;
+            const d=getDistance(measurePoints[0][0],measurePoints[0][1],measurePoints[1][0],measurePoints[1][1]).toFixed(2);
+            L.polyline(measurePoints,{color:"green",weight:3}).addTo(map).bindPopup(`Jarak: ${d} km`).openPopup();
+            measurePoints=[]; manualMeasure=false;
             alert("Pengukuran selesai: "+d+" km");
         } else alert("Pilih titik kedua di peta");
         return;
     }
 
-    if(referenceMarker)map.removeLayer(referenceMarker);
-    referenceMarker=L.marker([lat,lng],{
-        icon:L.divIcon({html:"🧍",iconSize:[24,24],iconAnchor:[12,12]})
-    }).addTo(map).bindPopup("Titik referensi").openPopup();
+    if(referenceMarker) map.removeLayer(referenceMarker);
+    referenceMarker = L.marker([lat,lng], { icon: L.divIcon({html:"🧍", iconSize:[24,24], iconAnchor:[12,12]}) })
+        .addTo(map).bindPopup("Titik referensi").openPopup();
+
+    if(!dataLoaded){
+        console.warn("Data masih dimuat, coba sebentar lagi...");
+        setTimeout(()=>{ if(dataLoaded) showNearby(lat,lng); else alert("Data masih dimuat. Coba lagi sebentar."); }, 800);
+        return;
+    }
 
     showNearby(lat,lng);
 });
 
-document.getElementById("searchBox").addEventListener("keypress",e=>{
-    if(e.key!=="Enter")return;
+/* ---------------- SEARCH BOX (kept) ---------------- */
 
-    const q=e.target.value.trim();
-    if(!q)return;
-
+function performSearch(q){
+    if(!dataLoaded){
+        alert("Data masih dimuat, coba lagi sebentar.");
+        return;
+    }
     const m=q.match(/^(-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)$/);
     if(m){
-        const lat=parseFloat(m[1]),lng=parseFloat(m[3]);
-        if(referenceMarker)map.removeLayer(referenceMarker);
-        referenceMarker=L.marker([lat,lng],{
-            icon:L.divIcon({html:"🧍",iconSize:[24,24],iconAnchor:[12,12]})
-        }).addTo(map);
+        const lat=parseFloat(m[1]), lng=parseFloat(m[3]);
+        if(referenceMarker) map.removeLayer(referenceMarker);
+        referenceMarker = L.marker([lat,lng],{icon:L.divIcon({html:"🧍",iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map);
         map.setView([lat,lng],13);
         showNearby(lat,lng);
         return;
     }
 
-    const found=allSites.find(s=>
-        s.siteID.toLowerCase()===q.toLowerCase() ||
-        s.siteName.toLowerCase().includes(q.toLowerCase())
-    );
-
+    const found = allSites.find(s => s.siteID.toLowerCase()===q.toLowerCase() || s.siteName.toLowerCase().includes(q.toLowerCase()));
     if(!found){
         alert("Site tidak ditemukan");
         return;
     }
 
-    if(referenceMarker)map.removeLayer(referenceMarker);
-    referenceMarker=L.marker([found.lat,found.lon])
-        .addTo(map)
-        .bindPopup(`<b>${found.siteID}</b><br>${found.siteName}`)
-        .openPopup();
+    if(referenceMarker) map.removeLayer(referenceMarker);
+    referenceMarker = L.marker([found.lat, found.lon]).addTo(map).bindPopup(`<b>${found.siteID}</b><br>${found.siteName}`).openPopup();
     map.setView([found.lat,found.lon],13);
-    showNearby(found.lat,found.lon);
+    showNearby(found.lat, found.lon);
+}
+
+document.getElementById("searchBox").addEventListener("keypress", e=>{
+    if(e.key !== "Enter") return;
+    const q = e.target.value.trim();
+    if(!q) return;
+    performSearch(q);
 });
 
-document.getElementById("resetBtn").onclick=()=>{
-    if(markersLayer)map.removeLayer(markersLayer);
-    if(referenceMarker)map.removeLayer(referenceMarker);
-    if(linesLayer)map.removeLayer(linesLayer);
-    document.querySelector('#summaryTable tbody').innerHTML="";
-    document.getElementById("siteFilterBox").style.display="none";
+/* ---------------- RESET / MEASURE / NUM SITES (kept) ---------------- */
+
+document.getElementById("resetBtn").onclick = ()=>{
+    if(markersLayer) map.removeLayer(markersLayer);
+    if(referenceMarker) map.removeLayer(referenceMarker);
+    if(linesLayer) map.removeLayer(linesLayer);
+    document.querySelector('#summaryTable tbody').innerHTML = "";
+    document.getElementById("siteFilterBox").style.display = "none";
     map.setView([-2.5,118],5);
-    document.getElementById("searchBox").value="";
+    document.getElementById("searchBox").value = "";
 };
 
-document.getElementById("measureBtn").onclick=()=>{
-    manualMeasure=true;
-    measurePoints=[];
+document.getElementById("measureBtn").onclick = ()=>{
+    manualMeasure = true;
+    measurePoints = [];
     alert("Klik dua titik di peta untuk mengukur jarak");
 };
 
-document.getElementById("numSites").addEventListener("change",()=>{
+document.getElementById("numSites").addEventListener("change", ()=>{
     if(referenceMarker){
-        const {lat,lng}=referenceMarker.getLatLng();
+        const {lat,lng} = referenceMarker.getLatLng();
         updateTable(lat,lng);
         updateMarkersAndLines(lat,lng);
     }
 });
+
+/* ---------------- DRAG HANDLE (kept) ---------------- */
 
 const dragHandle=document.getElementById('dragHandle');
 let isDragging=false;
 dragHandle.onmousedown=e=>{isDragging=true;e.preventDefault();};
 document.onmouseup=()=>isDragging=false;
 document.onmousemove=e=>{
-    if(!isDragging)return;
-    const H=document.getElementById('container').clientHeight;
-    let newH=e.clientY;
-    if(newH<100)newH=100;
-    if(newH>H-50)newH=H-50;
-    document.getElementById('map').style.height=newH+'px';
-    document.getElementById('summaryPanel').style.height=(H-newH-dragHandle.offsetHeight)+'px';
+    if(!isDragging) return;
+    const H = document.getElementById('container').clientHeight;
+    let newH = e.clientY;
+    if(newH < 100) newH = 100;
+    if(newH > H-50) newH = H-50;
+    document.getElementById('map').style.height = newH + 'px';
+    document.getElementById('summaryPanel').style.height = (H - newH - dragHandle.offsetHeight) + 'px';
     map.invalidateSize();
 };
 
-document.getElementById("gpsBtn").onclick=()=>{
-    if(!navigator.geolocation){
-        alert("Tidak didukung");
-        return;
-    }
+/* ---------------- GPS BTN (kept) ---------------- */
+
+document.getElementById("gpsBtn").onclick = ()=>{
+    if(!navigator.geolocation){ alert("Tidak didukung"); return; }
     navigator.geolocation.getCurrentPosition(pos=>{
-        const lat=pos.coords.latitude,lng=pos.coords.longitude;
-        if(referenceMarker)map.removeLayer(referenceMarker);
-        referenceMarker=L.marker([lat,lng],{
-            icon:L.divIcon({html:"🧭",iconSize:[24,24],iconAnchor:[12,12]})
-        }).addTo(map).bindPopup(`GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`).openPopup();
+        const lat=pos.coords.latitude, lng=pos.coords.longitude;
+        if(referenceMarker) map.removeLayer(referenceMarker);
+        referenceMarker = L.marker([lat,lng],{ icon:L.divIcon({html:"🧭", iconSize:[24,24], iconAnchor:[12,12]}) })
+            .addTo(map).bindPopup(`GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`).openPopup();
         map.setView([lat,lng],15);
-        showNearby(lat,lng);
-    },err=>alert(err.message),{enableHighAccuracy:true});
+        if(dataLoaded) showNearby(lat,lng);
+    }, err => alert(err.message), {enableHighAccuracy:true});
 };
 
-loadAllSheets();
+/* ==================== METRICS / ANALISA (FINAL) ==================== */
+
+/*
+CSV header example:
+Short name,period_start_time,IOH_4G_cell_availability_auto(Number),Delay,Jitter,PLR
+One row per site per timestamp.
+We group by site -> by date -> take last 3 timestamps, format:
+Date (line1)
+( hour = value ) ( hour = value ) ( hour = value ) (line2)
+*/
+
+async function fetchMetricsCSV(){
+    const url = `https://docs.google.com/spreadsheets/d/${sheetMetricsID}/gviz/tq?tqx=out:csv&gid=0`;
+    try{
+        const res = await fetch(url);
+        const text = await res.text();
+        return Papa.parse(text.trim(), {header:true});
+    }catch(e){
+        console.error('fetchMetricsCSV error', e);
+        throw e;
+    }
+}
+
+// helper: format date to D/M/YYYY
+function formatDateDMY(periodStr){
+    if(!periodStr) return '';
+    const d = new Date(periodStr);
+    if(!isNaN(d)) return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+    // fallback parse YYYY-MM-DD
+    const parts = (periodStr||'').split(' ')[0].split('-');
+    if(parts.length===3) return `${parseInt(parts[2],10)}/${parseInt(parts[1],10)}/${parts[0]}`;
+    return periodStr;
+}
+// helper: extract hour (no leading zero)
+function extractHour(periodStr){
+    if(!periodStr) return '';
+    const t = (periodStr.split(' ')[1] || '').split(':')[0];
+    return t ? parseInt(t,10) : '';
+}
+// format avail raw -> percent string
+function formatAvailValue(raw){
+    if(raw==null) return "-";
+    const s = String(raw).trim();
+    if(s.toLowerCase()==='nan' || s==='') return "-";
+    const num = parseFloat(s.replace(/[^0-9.\-]/g,''));
+    if(isNaN(num)) return "-";
+    if(num <= 1) return `${Math.round(num*100)}%`;
+    return `${num}%`;
+}
+
+// main analyze function
+async function analyzeSelectedSites(){
+    const checked = Array.from(document.querySelectorAll('.siteFilterItem')).filter(cb=>cb.checked).map(cb=>cb.value);
+    if(checked.length===0){ alert('Pilih minimal 1 site di filter terlebih dahulu'); return; }
+
+    let parsed;
+    try{ parsed = await fetchMetricsCSV(); } catch(e){ alert('Gagal mengambil data metrics: '+ (e.message || e)); return; }
+
+    const fields = parsed.meta && parsed.meta.fields ? parsed.meta.fields : [];
+    const rows = parsed.data || [];
+
+    // build index by site
+    const bySite = {};
+    const headerMap = {};
+    (fields||[]).forEach(h => { if(h) headerMap[h.toString().trim().toLowerCase()] = h; });
+
+    // derive likely keys
+    const keyShortCandidates = ['short name','shortname','short_name','shortname'];
+    const keyPeriodCandidates = ['period_start_time','period start time','period','period_start'];
+    const keyAvailCandidates = ['ioh_4g_cell_availability_auto(number)','ioh_4g_cell_availability_auto(number)','ioh_4g_cell_availability_auto','availability','ioh'];
+    const keyPlrCandidates = ['plr'];
+    const keyDelayCandidates = ['delay'];
+
+    function findKey(cands){
+        for(const c of cands) if(headerMap[c]) return headerMap[c];
+        return null;
+    }
+    const keyShort = findKey(keyShortCandidates) || fields[0];
+    const keyPeriod = findKey(keyPeriodCandidates) || 'period_start_time';
+    const keyAvail = findKey(keyAvailCandidates);
+    const keyPLR = findKey(keyPlrCandidates);
+    const keyDelay = findKey(keyDelayCandidates);
+
+    rows.forEach(r=>{
+        const sid = (r[keyShort] || r[keyShort.toLowerCase()] || r['Short name'] || r['short name'] || '').toString().trim();
+        if(!sid) return;
+        if(!bySite[sid]) bySite[sid] = [];
+        // keep normalized object with known keys
+        bySite[sid].push({
+            period: r[keyPeriod] || r['period_start_time'] || r['period start time'] || '',
+            avail: (keyAvail ? (r[keyAvail] !== undefined ? r[keyAvail] : r[keyAvail.toLowerCase()]) : (r['IOH_4G_cell_availability_auto(Number)'] || r['ioh_4g_cell_availability_auto(number)'])),
+            plr: (keyPLR ? (r[keyPLR] !== undefined ? r[keyPLR] : r[keyPLR.toLowerCase()]) : (r['PLR'] || r['plr'])),
+            delay: (keyDelay ? (r[keyDelay] !== undefined ? r[keyDelay] : r[keyDelay.toLowerCase()]) : (r['Delay'] || r['delay']))
+        });
+    });
+
+    // for each selected site, build display
+    checked.forEach(siteID=>{
+        let tr = document.querySelector(`#summaryTable tbody tr[data-siteid='${siteID}']`);
+        if(!tr){
+            const possible = Array.from(document.querySelectorAll('#summaryTable tbody tr')).find(r=>{
+                const td0 = r.querySelector('td');
+                return td0 && td0.textContent.trim() === siteID;
+            });
+            if(possible) tr = possible;
+        }
+        if(!tr) return;
+
+        const siteRows = bySite[siteID] || [];
+        if(siteRows.length === 0){
+            tr.querySelector('.metric-avail').innerHTML = '-';
+            tr.querySelector('.metric-plr').innerHTML = '-';
+            tr.querySelector('.metric-delay').innerHTML = '-';
+            return;
+        }
+
+        // group by date (YYYY-MM-DD)
+        const grouped = {};
+        siteRows.forEach(r=>{
+            const dateOnly = (r.period||'').toString().split(' ')[0];
+            if(!grouped[dateOnly]) grouped[dateOnly] = [];
+            grouped[dateOnly].push(r);
+        });
+
+        const dateKeys = Object.keys(grouped).filter(k=>k).sort();
+        if(dateKeys.length === 0){
+            tr.querySelector('.metric-avail').innerHTML = '-';
+            tr.querySelector('.metric-plr').innerHTML = '-';
+            tr.querySelector('.metric-delay').innerHTML = '-';
+            return;
+        }
+
+        const latestDate = dateKeys[dateKeys.length - 1];
+        let rowsOfDate = grouped[latestDate] || [];
+
+        // sort ascending by period then take last 3
+        rowsOfDate.sort((a,b)=> new Date(a.period) - new Date(b.period));
+        const last3 = rowsOfDate.slice(-3);
+
+        // build HTML: date line + hour line
+        const dateLabel = formatDateDMY(last3[0].period || latestDate);
+
+        const availParts = last3.map(r => {
+            const h = extractHour(r.period);
+            return `( ${h} = ${formatAvailValue(r.avail)} )`;
+        }).join(' ');
+
+        const plrParts = last3.map(r => {
+            const h = extractHour(r.period);
+            const v = (r.plr === undefined || r.plr === '') ? '-' : r.plr;
+            return `( ${h} = ${v} )`;
+        }).join(' ');
+
+        const delayParts = last3.map(r => {
+            const h = extractHour(r.period);
+            const v = (r.delay === undefined || r.delay === '') ? '-' : r.delay;
+            return `( ${h} = ${v} )`;
+        }).join(' ');
+
+        // use innerHTML with <div> and <br> so it displays as two lines
+        const availHTML = `<div>${dateLabel}<br>${availParts}</div>`;
+        const plrHTML = `<div>${dateLabel}<br>${plrParts}</div>`;
+        const delayHTML = `<div>${dateLabel}<br>${delayParts}</div>`;
+
+        tr.querySelector('.metric-avail').innerHTML = availHTML;
+        tr.querySelector('.metric-plr').innerHTML = plrHTML;
+        tr.querySelector('.metric-delay').innerHTML = delayHTML;
+    });
+
+    alert('Selesai mengambil data dan mengisi tabel (jika data tersedia).');
+}
+
+document.getElementById('analisaBtn').addEventListener('click', analyzeSelectedSites);
+
+/* ---------------- INIT (wait for sheets) ---------------- */
+
+(async function init(){
+    await loadAllSheets();
+    console.log("Sites loaded:", allSites.length);
+    // optionally you can focus search or auto-show first site
+})();
 </script>
 </body>
 </html>
