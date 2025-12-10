@@ -650,7 +650,7 @@ async function analyzeSelectedSites(){
         // PLR: show numeric values without '%' sign, keep decimals (e.g. 0.1)
         const plrValues = last3.map(r => parseMetric(r.plr, {ratio:false, roundInt:false}) ).join(', ');
         // Delay: remove unit like "ms" and show integers
-        const delayValues = last3.map(r => parseMetric(r.delay, {ratio:false, roundInt:true}) ).join(', ');
+        const delayValues = last3.map(r => parseMetric(r.delay, {ratio:false, roundInt:false}) ).join(', ');
 
         tr.querySelector('.metric-avail').innerHTML = availValues;
         tr.querySelector('.metric-plr').innerHTML = plrValues;
@@ -690,3 +690,4 @@ document.getElementById('analisaBtn').addEventListener('click', analyzeSelectedS
 </script>
 </body>
 </html>
+
