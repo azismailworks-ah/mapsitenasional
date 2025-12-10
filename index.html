@@ -29,6 +29,15 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
 #analisaBtn{background:#388e3c;color:white;padding:8px 12px;border-radius:8px;border:none;cursor:pointer;margin-bottom:8px}
 #analisaBtn[disabled]{opacity:0.6; cursor:not-allowed}
 .metric-cell {white-space:normal; text-align:left; font-size:13px;}
+/* result box styling */
+#resultBox {border:1px solid #1976d2; background: linear-gradient(180deg,#ffffff,#eaf4ff); padding:8px 10px; margin:8px 0; border-radius:6px; color:#0b3d91;}
+#resultBox .title {font-weight:700; margin-bottom:6px;}
+#resultBox .meta {font-size:13px;}
+/* small responsive */
+@media(max-width:800px){
+  #resultBox {font-size:13px;}
+  #summaryPanel th, #summaryPanel td {font-size:13px; padding:6px;}
+}
 </style>
 </head>
 <body>
@@ -70,6 +79,12 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
           <option value="20">20</option>
         </select> site terdekat
       </div>
+    </div>
+
+    <!-- Result Analysis box (will be filled by analyzeSelectedSites) -->
+    <div id="resultBox" style="display:none;">
+      <div class="title">Result Analysis</div>
+      <div class="meta" id="resultMeta">Date : - &nbsp;&nbsp; Hours : -</div>
     </div>
 
     <table id="summaryTable">
@@ -185,6 +200,44 @@ function createToggleCell(v){
     td.textContent=v;
     td.onclick=()=>{ td.textContent = td.textContent==="✅" ? "❌" : "✅"; };
     return td;
+}
+
+/* ---------------- New helper for metric parsing ---------------- */
+/*
+ parseMetric(raw, options)
+ options:
+   - ratio: boolean -> if true and number <= 1, multiply by 100 (useful for availability stored as fraction)
+   - roundInt: boolean -> round to integer (use for Avail and Delay)
+ returns string '-' when value invalid, otherwise numeric string (no units, no %)
+*/
+function parseMetric(raw, options = {ratio:false, roundInt:false}) {
+    if (raw === undefined || raw === null) return '-';
+    let s = String(raw).trim();
+    if (s === '' || s.toLowerCase() === 'nan') return '-';
+
+    // attempt to find first numeric substring
+    const m = s.match(/-?\d+(\.\d+)?/);
+    if (!m) return '-';
+    let num = parseFloat(m[0]);
+    if (isNaN(num)) return '-';
+
+    // if it's percent-like (contains %) but number looks like 0.1% meaning 0.1 -> we want 0.1 (not 0.001)
+    // For ratio flag: common case: availability given as 0.98 => treat as 98%
+    if (options.ratio && Math.abs(num) <= 1) num = num * 100;
+
+    if (options.roundInt) num = Math.round(num);
+
+    // format: remove trailing .0 for integers, keep decimals otherwise (max 3 decimals)
+    if (!options.roundInt) {
+        // limit decimals to max 3, trim trailing zeros
+        num = Math.round(num * 1000) / 1000;
+        let sNum = String(num);
+        if (sNum.indexOf('.') >= 0) {
+            sNum = sNum.replace(/\.?0+$/,'');
+        }
+        return sNum;
+    }
+    return String(num);
 }
 
 /* ---------------- FILTER RENDER ---------------- */
@@ -389,6 +442,9 @@ document.getElementById("resetBtn").onclick = ()=>{
     if(linesLayer) map.removeLayer(linesLayer);
     document.querySelector('#summaryTable tbody').innerHTML = "";
     document.getElementById("siteFilterBox").style.display = "none";
+    // hide result box on reset
+    document.getElementById('resultBox').style.display = 'none';
+    document.getElementById("resultMeta").textContent = "Date : -   Hours : -";
     map.setView([-2.5,118],5);
     document.getElementById("searchBox").value = "";
 };
@@ -477,7 +533,7 @@ function extractHour(periodStr){
     const t = (periodStr.split(' ')[1] || '').split(':')[0];
     return t ? parseInt(t,10) : '';
 }
-// format avail raw -> percent string
+// format avail raw -> percent string (kept for backward compat)
 function formatAvailValue(raw){
     if(raw==null) return "-";
     const s = String(raw).trim();
@@ -488,7 +544,7 @@ function formatAvailValue(raw){
     return `${num}%`;
 }
 
-// main analyze function
+// main analyze function (modified to build global Result Analysis + compact cell values)
 async function analyzeSelectedSites(){
     const checked = Array.from(document.querySelectorAll('.siteFilterItem')).filter(cb=>cb.checked).map(cb=>cb.value);
     if(checked.length===0){ alert('Pilih minimal 1 site di filter terlebih dahulu'); return; }
@@ -534,6 +590,10 @@ async function analyzeSelectedSites(){
         });
     });
 
+    // For global Result Analysis (we collect dates/hours across all selected sites)
+    const globalDateSet = new Set();
+    const globalHourSet = new Set();
+
     // for each selected site, build display
     checked.forEach(siteID=>{
         let tr = document.querySelector(`#summaryTable tbody tr[data-siteid='${siteID}']`);
@@ -571,41 +631,49 @@ async function analyzeSelectedSites(){
         }
 
         const latestDate = dateKeys[dateKeys.length - 1];
+        globalDateSet.add(latestDate);
         let rowsOfDate = grouped[latestDate] || [];
 
         // sort ascending by period then take last 3
         rowsOfDate.sort((a,b)=> new Date(a.period) - new Date(b.period));
         const last3 = rowsOfDate.slice(-3);
 
-        // build HTML: date line + hour line
-        const dateLabel = formatDateDMY(last3[0].period || latestDate);
-
-        const availParts = last3.map(r => {
+        // collect hours for the global hours set
+        last3.forEach(r => {
             const h = extractHour(r.period);
-            return `( ${h} = ${formatAvailValue(r.avail)} )`;
-        }).join(' ');
+            if(h !== '') globalHourSet.add(h);
+        });
 
-        const plrParts = last3.map(r => {
-            const h = extractHour(r.period);
-            const v = (r.plr === undefined || r.plr === '') ? '-' : r.plr;
-            return `( ${h} = ${v} )`;
-        }).join(' ');
+        // build compact values only for each metric (no date / hour labels inside cell)
+        // Avail: treat as ratio possibly (0.98 -> 98) and show integer percentages without '%' sign
+        const availValues = last3.map(r => parseMetric(r.avail, {ratio:true, roundInt:true}) ).join(', ');
+        // PLR: show numeric values without '%' sign, keep decimals (e.g. 0.1)
+        const plrValues = last3.map(r => parseMetric(r.plr, {ratio:false, roundInt:false}) ).join(', ');
+        // Delay: remove unit like "ms" and show integers
+        const delayValues = last3.map(r => parseMetric(r.delay, {ratio:false, roundInt:true}) ).join(', ');
 
-        const delayParts = last3.map(r => {
-            const h = extractHour(r.period);
-            const v = (r.delay === undefined || r.delay === '') ? '-' : r.delay;
-            return `( ${h} = ${v} )`;
-        }).join(' ');
-
-        // use innerHTML with <div> and <br> so it displays as two lines
-        const availHTML = `<div>${dateLabel}<br>${availParts}</div>`;
-        const plrHTML = `<div>${dateLabel}<br>${plrParts}</div>`;
-        const delayHTML = `<div>${dateLabel}<br>${delayParts}</div>`;
-
-        tr.querySelector('.metric-avail').innerHTML = availHTML;
-        tr.querySelector('.metric-plr').innerHTML = plrHTML;
-        tr.querySelector('.metric-delay').innerHTML = delayHTML;
+        tr.querySelector('.metric-avail').innerHTML = availValues;
+        tr.querySelector('.metric-plr').innerHTML = plrValues;
+        tr.querySelector('.metric-delay').innerHTML = delayValues;
     });
+
+    // Build global Result Analysis display (Choice A: single box for all sites)
+    // Choose global latest date as the maximum (string compare works for YYYY-MM-DD)
+    let latestGlobalDate = null;
+    if(globalDateSet.size > 0){
+        latestGlobalDate = Array.from(globalDateSet).sort()[globalDateSet.size - 1];
+    }
+    // Build sorted hours array
+    const hoursArr = Array.from(globalHourSet).map(h=>parseInt(h,10)).filter(n=>!isNaN(n)).sort((a,b)=>a-b);
+    const hoursStr = hoursArr.length ? hoursArr.join(' / ') : '-';
+
+    if(latestGlobalDate){
+        document.getElementById('resultMeta').textContent = `Date : ${formatDateDMY(latestGlobalDate)}   Hours : ${hoursStr}`;
+        document.getElementById('resultBox').style.display = 'block';
+    } else {
+        document.getElementById('resultMeta').textContent = `Date : -   Hours : -`;
+        document.getElementById('resultBox').style.display = 'block';
+    }
 
     alert('Selesai mengambil data dan mengisi tabel (jika data tersedia).');
 }
