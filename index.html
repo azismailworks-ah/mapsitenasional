@@ -12,7 +12,7 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
 #map {flex:1; width:100%; transition: height 0.2s;}
 #summaryPanel {background:#f5f5f5; padding:10px; border-top:1px solid #ccc; overflow:auto; transition: height 0.2s;}
 #summaryPanel table {width:100%; border-collapse:collapse;}
-#summaryPanel th, #summaryPanel td {border:1px solid #ccc; padding:6px 8px; text-align:center; font-size:14px; vertical-align:top;}
+#summaryPanel th, #summaryPanel td {border:1px solid #ccc; padding:6px 2px; text-align:center; font-size:12px; vertical-align:top;}
 #summaryPanel th {background:#1976d2; color:white;}
 .toggle-cell {cursor:pointer; user-select:none; font-size:18px;}
 .leaflet-tooltip {background: rgba(255,255,255,0.95); border: 1px solid #666; border-radius: 4px; font-size: 14px; padding: 4px 6px; white-space: nowrap; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.3);} 
@@ -28,11 +28,11 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
 #siteFilterBox {display:none; background:white; border:1px solid #ccc; padding:6px; margin:8px 0; max-height:160px; overflow:auto;}
 #analisaBtn{background:#388e3c;color:white;padding:8px 12px;border-radius:8px;border:none;cursor:pointer;margin-bottom:8px}
 #analisaBtn[disabled]{opacity:0.6; cursor:not-allowed}
-.metric-cell {white-space:normal; text-align:left; font-size:13px;}
+.metric-cell {white-space:normal; text-align:left; font-size:12px;}
 /* result box styling */
 #resultBox {border:1px solid #1976d2; background: linear-gradient(180deg,#ffffff,#eaf4ff); padding:8px 10px; margin:8px 0; border-radius:6px; color:#0b3d91;}
 #resultBox .title {font-weight:700; margin-bottom:6px;}
-#resultBox .meta {font-size:13px;}
+#resultBox .meta {font-size:12px;}
 /* small responsive */
 @media(max-width:800px){
   #resultBox {font-size:13px;}
@@ -83,8 +83,8 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
 
     <!-- Result Analysis box (will be filled by analyzeSelectedSites) -->
     <div id="resultBox" style="display:none;">
-      <div class="title">Result Analysis</div>
-      <div class="meta" id="resultMeta">Date : - &nbsp;&nbsp; Hours : -</div>
+      <div class="title">Result Analysis</div> 
+	  <div class="meta" id="resultMeta">Date : - &nbsp;&nbsp; Hours : -</div>
     </div>
 
     <table id="summaryTable">
@@ -93,9 +93,9 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
           <th>SiteID</th>
           <th>Site Name</th>
           <th>Dist (km)</th>
-          <th>SIA Status</th>
-          <th>Cell Status</th>
-          <th>Twamp PLR/Delay</th>
+          <th>SIA</th>
+          <th>Cell</th>
+          <th>Twamp</th>
           <th>Avail</th>
           <th>PLR</th>
           <th>Delay</th>
@@ -690,4 +690,3 @@ document.getElementById('analisaBtn').addEventListener('click', analyzeSelectedS
 </script>
 </body>
 </html>
-
