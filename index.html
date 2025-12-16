@@ -341,7 +341,7 @@ function updateMarkersAndLines(lat,lon){
             .bindPopup(`<b>${s.siteID}</b><br>${s.siteName}<br>${s.address}<br><i>${s.region}</i>`)
             .addTo(markersLayer);
 
-        m.bindTooltip(`${s.siteID}<br>${s.siteName}`, {permanent:true, direction:"bottom", offset:[0,5]});
+        m.bindTooltip(`${s.siteID}`, {permanent:true, direction:"bottom", offset:[0,5]});
     });
 
     drawConnectionLines(lat,lon,shownSites);
