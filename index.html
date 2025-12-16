@@ -38,6 +38,11 @@ html, body {height:100%; margin:0; font-family: Arial, sans-serif;}
   #resultBox {font-size:13px;}
   #summaryPanel th, #summaryPanel td {font-size:13px; padding:6px;}
 }
+/* ===== KPI ALERT STYLE (FINAL) ===== */
+.kpi-alert{
+  color:#8b0000;      /* merah tua */
+  <!-- font-weight:700;   /* bold */ -->
+}
 </style>
 </head>
 <body>
@@ -645,12 +650,29 @@ async function analyzeSelectedSites(){
         });
 
         // build compact values only for each metric (no date / hour labels inside cell)
-        // Avail: treat as ratio possibly (0.98 -> 98) and show integer percentages without '%' sign
-        const availValues = last3.map(r => parseMetric(r.avail, {ratio:true, roundInt:true}) ).join(', ');
-        // PLR: show numeric values without '%' sign, keep decimals (e.g. 0.1)
-        const plrValues = last3.map(r => parseMetric(r.plr, {ratio:false, roundInt:false}) ).join(', ');
-        // Delay: remove unit like "ms" and show integers
-        const delayValues = last3.map(r => parseMetric(r.delay, {ratio:false, roundInt:false}) ).join(', ');
+		const availValues = last3.map(r=>{
+			const v = parseMetric(r.avail,{ratio:true,roundInt:true});
+			if(v !== '-' && Number(v) < 100){
+				return `<span class="kpi-alert">${v}</span>`;
+			}
+			return v;
+		}).join(', ');
+		
+		const plrValues = last3.map(r=>{
+			const v = parseMetric(r.plr,{ratio:false,roundInt:false});
+			if(v !== '-' && Number(v) >= 1){
+				return `<span class="kpi-alert">${v}</span>`;
+			}
+			return v;
+		}).join(', ');
+		
+		const delayValues = last3.map(r=>{
+			const v = parseMetric(r.delay,{ratio:false,roundInt:false});
+			if(v !== '-' && Number(v) >= 11){
+				return `<span class="kpi-alert">${v}</span>`;
+			}
+			return v;
+		}).join(', ');
 
         tr.querySelector('.metric-avail').innerHTML = availValues;
         tr.querySelector('.metric-plr').innerHTML = plrValues;
